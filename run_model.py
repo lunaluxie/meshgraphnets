@@ -42,6 +42,7 @@ flags.DEFINE_enum('rollout_split', 'valid', ['train', 'test', 'valid'],
                   'Dataset split to use for rollouts.')
 flags.DEFINE_integer('num_rollouts', 10, 'No. of rollout trajectories')
 flags.DEFINE_integer('num_training_steps', int(10e6), 'No. of training steps')
+flags.DEFINE_bool('subequivariant', True, 'Use subequivariant model')
 
 PARAMETERS = {
     'cfd': dict(noise=0.02, gamma=1.0, field='velocity', history=False,
@@ -116,11 +117,11 @@ def main(argv):
   tf.disable_eager_execution()
   params = PARAMETERS[FLAGS.model]
   learned_model = core_model.EncodeProcessDecode(
-      output_size=params['size'],
+      output_size=params['size'] if not FLAGS.subequivariant else params['size']*2, # adjust for subeqv. size -> m'
       latent_size=128,
       num_layers=2,
       message_passing_steps=15)
-  model = params['model'].Model(learned_model)
+  model = params['model'].Model(learned_model, subequivariant=FLAGS.subequivariant)
   if FLAGS.mode == 'train':
     learner(model, params)
   elif FLAGS.mode == 'eval':
