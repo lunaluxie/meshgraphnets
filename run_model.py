@@ -21,12 +21,12 @@ from absl import flags
 from absl import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
-from meshgraphnets import cfd_eval
-from meshgraphnets import cfd_model
-from meshgraphnets import cloth_eval
-from meshgraphnets import cloth_model
-from meshgraphnets import core_model
-from meshgraphnets import dataset
+import cfd_eval
+import cfd_model
+import cloth_eval
+import cloth_model
+import core_model
+import dataset
 
 
 FLAGS = flags.FLAGS
