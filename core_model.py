@@ -79,21 +79,47 @@ class GraphNetBlock(snt.AbstractModule):
 
 
 class InvarianceTransform(snt.AbstractModule):
-    def __init__(self, z_size: int, h_size: int, name="InvarianceTransform"):
+    def __init__(self, z_size: int, h_size: int, network, name="InvarianceTransform"):
         super().__init__(name=name)
+        self.network = network
         assert z_size % 3 == 0, "z_size must be a multiple of 3"
         self._z_size = z_size
         self._h_size = h_size
 
     def _build(self, latent):
-        assert latent.shape[1] == self._z_size + self._h_size
-        gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 3, 1))
+        #assert latent.shape[1] == self._z_size + self._h_size
+        gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
 
-        z_latent = latent[:, : self._z_size].reshape(
-            (-1, self._z_size // 3, 3)
+        z_latent_dim = self._z_size // 3
+        z_latent = tf.reshape(latent[:, : self._z_size],
+            (-1, z_latent_dim , 3)
         )  # [Node, Facet, Coordinates]
-        h_latent = latent[:, self._z_size :]
-        z_g = tf.concat  # zlatent, gravity vec
+        h_latent = latent[:, self._z_size :] # []
+        z_g = tf.concat([z_latent, tf.repeat(gravity_vector, z_latent.shape[0], axis=0)], axis=1) # [nodes, z_latent_dim+1, 3]  # zlatent, gravity vec
+        velocity_orthog_inv = tf.einsum(
+                "nac,nbc->nab", z_g, z_g
+            )
+        m_plus_one = ((z_latent_dim)+1)
+        velocity_orthog_inv = tf.reshape(velocity_orthog_inv, (-1,m_plus_one*2))
+        transform = tf.concat([velocity_orthog_inv, h_latent], axis=1)
+        network_output = self.network(transform)
+
+        network_output =  tf.reshape(self.network(transform), (-1, m_plus_one, network_output.shape[1]//m_plus_one))
+        # velo: [n, m+1, 3]
+
+        final_output = tf.einsum(
+                "nmc,nmb->ncb", z_g, network_output
+            )
+        final_output_reshaped = tf.reshape(final_output, (-1, final_output.shape[1] * final_output.shape[2] ))
+        return final_output_reshaped
+        
+
+        
+        
+        
+
+        
+
 
 
 class EncodeProcessDecode(snt.AbstractModule):
@@ -120,8 +146,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         widths = [self._latent_size] * self._num_layers + [output_size]
         network = snt.nets.MLP(widths, activate_final=False)
         if self._subeq_layers:
-            inv_trans = InvarianceTransform(z_size=48, h_size=16)  # TODO
-            network = snt.Sequential([inv_trans, network])
+            network = InvarianceTransform(z_size=3, h_size=9, network=network)  # TODO
         if layer_norm:
             network = snt.Sequential([network, snt.LayerNorm()])
         return network
