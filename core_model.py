@@ -81,11 +81,19 @@ class GraphNetBlock(snt.AbstractModule):
 class InvarianceTransform(snt.AbstractModule):
     def __init__(self, z_size: int, h_size: int, name="InvarianceTransform"):
         super().__init__(name=name)
+        assert z_size % 3 == 0, "z_size must be a multiple of 3"
         self._z_size = z_size
         self._h_size = h_size
 
     def _build(self, latent):
-        print(latent.shape)
+        assert latent.shape[1] == self._z_size + self._h_size
+        gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 3, 1))
+
+        z_latent = latent[:, : self._z_size].reshape(
+            (-1, self._z_size // 3, 3)
+        )  # [Node, Facet, Coordinates]
+        h_latent = latent[:, self._z_size :]
+        z_g = tf.concat  # zlatent, gravity vec
 
 
 class EncodeProcessDecode(snt.AbstractModule):
@@ -112,7 +120,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         widths = [self._latent_size] * self._num_layers + [output_size]
         network = snt.nets.MLP(widths, activate_final=False)
         if self._subeq_layers:
-            inv_trans = InvarianceTransform(z_size=50, h_size=14)  # TODO
+            inv_trans = InvarianceTransform(z_size=48, h_size=16)  # TODO
             network = snt.Sequential([inv_trans, network])
         if layer_norm:
             network = snt.Sequential([network, snt.LayerNorm()])
