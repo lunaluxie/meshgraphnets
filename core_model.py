@@ -104,7 +104,9 @@ class InvarianceTransform(snt.AbstractModule):
         # In shape: [Batch * Latent (in_Z + in_h)]
         # Out shape: [New latent (out_Z + out_h)]
         object_count = latent.shape[0]
-        latent = latent.reshape((object_count, -1, self._in_z_size + self._in_h_size))
+        latent = tf.reshape(
+            latent, (object_count, -1, self._in_z_size + self._in_h_size)
+        )
         neighbor_count = latent.shape[1]
 
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
@@ -114,8 +116,9 @@ class InvarianceTransform(snt.AbstractModule):
         in_z = tf.reshape(
             latent[:, :, self._in_z_size], (object_count, m * neighbor_count, 3)
         )  # [Node, m * neighbours, Coordinates]
-        in_h = latent[:, :, self._in_z_size :].reshape(
-            (object_count, self._in_h_size * neighbor_count)
+        in_h = tf.reshape(
+            latent[:, :, self._in_z_size :],
+            (object_count, self._in_h_size * neighbor_count),
         )  # [Node, h * neighbours]
 
         z_g = tf.concat(
@@ -124,14 +127,15 @@ class InvarianceTransform(snt.AbstractModule):
         z_orthogonal = tf.einsum(
             "nac,nbc->nab", z_g, z_g
         )  # [Node, (m*neighbours)+1, (m*neighbours)+1]
-        z_orthogonal_flat = z_orthogonal.reshape(
-            (object_count, (m * neighbor_count + 1) ** 2)
+        z_orthogonal_flat = tf.reshape(
+            z_orthogonal, (object_count, (m * neighbor_count + 1) ** 2)
         )
-        net_in = tf.concat([z_orthogonal_flat, in_h], axis=1).reshape(
+        net_in = tf.reshape(
+            tf.concat([z_orthogonal_flat, in_h], axis=1),
             (
                 object_count,
                 (m * neighbor_count + 1) ** 2 + self._in_h_size * neighbor_count,
-            )
+            ),
         )
 
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
@@ -140,17 +144,26 @@ class InvarianceTransform(snt.AbstractModule):
             (m + 1) * m_prime + self._out_h_size,
         ), f"Strange V_g shape {net_out.shape}"
 
-        out_z = net_out[:, -self._out_h_size].reshape(object_count, ((m + 1), m_prime))
+        out_z = tf.reshape(
+            net_out[:, -self._out_h_size], object_count, ((m + 1), m_prime)
+        )
         out_h = net_out[:, -self._out_h_size :]
 
         # The first object must correspond with 'ourselves', so we take gravity + this
         out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g[:, : m + 1], out_z)
         assert out_z_transformed.shape == tf.TensorShape(m_prime, 3)
-        out_z_flat = out_z_transformed.reshape((self._out_z_size,))
+        out_z_flat = tf.reshape(
+            out_z_transformed,
+            (
+                object_count,
+                self._out_z_size,
+            ),
+        )
 
         output = tf.concat((out_z_flat, out_h), axis=1)
         assert output.shape == tf.TensorShape(
-            self._out_z_size + self._out_h_size,
+            object_count,
+            64,
         ), output.shape
         return output
 
