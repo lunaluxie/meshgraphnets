@@ -92,10 +92,12 @@ class InvarianceTransform(snt.AbstractModule):
         in_h_size: int,
         out_z_size: int,
         out_h_size: int,
+        neighbours: int,
         name="InvarianceTransform",
     ):
         super().__init__(name=name)
         self.network = network
+        self.neighbours = neighbours
         assert in_z_size % 3 == 0, "in_z_size must be a multiple of 3"
         self._in_z_size = in_z_size
         self._in_h_size = in_h_size
@@ -104,24 +106,22 @@ class InvarianceTransform(snt.AbstractModule):
         self._out_z_size = out_z_size
         self._out_h_size = out_h_size
 
-    def _build(self, latent, neighbours: int):
+    def _build(self, latent):
         # In shape: [Batch * Latent (in_Z + in_h)]
         # Out shape: [New latent (out_Z + out_h)]
         latent = tf.reshape(
-            latent, (None, neighbours, self._in_z_size + self._in_h_size)
+            latent, (None, self.neighbours, self._in_z_size + self._in_h_size)
         )
-        neighbor_count = latent.shape[1]
-
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
         m = self._in_z_size // 3  # Number of 3D vectors in Z == `m` from SOMP
         m_prime = self._out_z_size // 3  # Number of 3D vectors in output
 
         in_z = tf.reshape(
-            latent[:, :, self._in_z_size], (None, m * neighbor_count, 3)
+            latent[:, :, self._in_z_size], (None, m * self.neighbours, 3)
         )  # [Node, m * neighbours, Coordinates]
         in_h = tf.reshape(
             latent[:, :, self._in_z_size :],
-            (None, self._in_h_size * neighbor_count),
+            (None, self._in_h_size * self.neighbours),
         )  # [Node, h * neighbours]
 
         z_g = tf.concat(
@@ -131,13 +131,13 @@ class InvarianceTransform(snt.AbstractModule):
             "nac,nbc->nab", z_g, z_g
         )  # [Node, (m*neighbours)+1, (m*neighbours)+1]
         z_orthogonal_flat = tf.reshape(
-            z_orthogonal, (None, (m * neighbor_count + 1) ** 2)
+            z_orthogonal, (None, (m * self.neighbours + 1) ** 2)
         )
         net_in = tf.reshape(
             tf.concat([z_orthogonal_flat, in_h], axis=1),
             (
                 None,
-                (m * neighbor_count + 1) ** 2 + self._in_h_size * neighbor_count,
+                (m * self.neighbours + 1) ** 2 + self._in_h_size * self.neighbours,
             ),
         )
 
@@ -189,7 +189,11 @@ class EncodeProcessDecode(snt.AbstractModule):
         self._subeq_layers = subeq_layers
 
     def _make_mlp(
-        self, output_size: int, layer_norm: bool = True, subequivariant: bool = False
+        self,
+        output_size: int,
+        layer_norm: bool = True,
+        subequivariant: bool = False,
+        neighbours: int = None,
     ):
         """Builds an MLP."""
         if subequivariant:
@@ -206,6 +210,7 @@ class EncodeProcessDecode(snt.AbstractModule):
                 in_h_size=h_size,
                 out_z_size=m * 3,
                 out_h_size=h_size,
+                neighbours=neighbours,
             )
             assert m * 3 + h_size == 64
         else:
