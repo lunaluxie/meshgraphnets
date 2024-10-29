@@ -41,7 +41,8 @@ class GraphNetBlock(snt.AbstractModule):
         features = [sender_features, receiver_features, edge_set.features]
         with tf.variable_scope(edge_set.name + "_edge_fn"):
             return self._model_fn(
-                neighbours=len(features), objects=tf.shape(edge_set.features)[0]
+                neighbours=len(features),
+                objects=9212,  # TODO: hard coded object count
             )(tf.concat(features, axis=-1))
 
     def _update_node_features(self, node_features, edge_sets):
@@ -55,9 +56,10 @@ class GraphNetBlock(snt.AbstractModule):
                 )
             )
         with tf.variable_scope("node_fn"):
-            return self._model_fn(neighbours=len(features), objects=num_nodes)(
-                tf.concat(features, axis=-1)
-            )
+            return self._model_fn(
+                neighbours=len(features),
+                objects=1579,  # TODO: hard coded object count
+            )(tf.concat(features, axis=-1))
 
     def _build(self, graph):
         """Applies GraphNetBlock and returns updated MultiGraph."""
@@ -111,15 +113,15 @@ class InvarianceTransform(snt.AbstractModule):
     def _build(self, latent):
         # In shape: [Batch * Latent (in_Z + in_h)]
         # Out shape: [New latent (out_Z + out_h)]
+        latent.set_shape((self.objects, self.neighbours * 64))
         latent = tf.reshape(
             latent, (self.objects, self.neighbours, self._in_z_size + self._in_h_size)
         )
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
         m = self._in_z_size // 3  # Number of 3D vectors in Z == `m` from SOMP
         m_prime = self._out_z_size // 3  # Number of 3D vectors in output
-
         in_z = tf.reshape(
-            latent[:, :, self._in_z_size], (self.objects, m * self.neighbours, 3)
+            latent[:, :, : self._in_z_size], (self.objects, m * self.neighbours, 3)
         )  # [Node, m * neighbours, Coordinates]
         in_h = tf.reshape(
             latent[:, :, self._in_z_size :],
@@ -129,12 +131,15 @@ class InvarianceTransform(snt.AbstractModule):
         z_g = tf.concat(
             (tf.repeat(gravity_vector, latent.shape[0], axis=0), in_z), axis=1
         )  # [nodes, 1+(m*neighbours), 3]
+
         z_orthogonal = tf.einsum(
             "nac,nbc->nab", z_g, z_g
         )  # [Node, (m*neighbours)+1, (m*neighbours)+1]
+
         z_orthogonal_flat = tf.reshape(
             z_orthogonal, (self.objects, (m * self.neighbours + 1) ** 2)
         )
+
         net_in = tf.reshape(
             tf.concat([z_orthogonal_flat, in_h], axis=1),
             (
@@ -145,31 +150,33 @@ class InvarianceTransform(snt.AbstractModule):
 
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
         assert net_out.shape == tf.TensorShape(
-            self.objects,
-            (m + 1) * m_prime + self._out_h_size,
+            (
+                self.objects,
+                (m + 1) * m_prime + self._out_h_size,
+            )
         ), f"Strange V_g shape {net_out.shape}"
 
         out_z = tf.reshape(
-            net_out[:, -self._out_h_size], self.objects, ((m + 1), m_prime)
+            net_out[:, : -self._out_h_size],
+            (self.objects, (m + 1), m_prime),
         )
+
         out_h = net_out[:, -self._out_h_size :]
 
         # The first object must correspond with 'ourselves', so we take gravity + this
         out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g[:, : m + 1], out_z)
-        assert out_z_transformed.shape == tf.TensorShape(m_prime, 3)
+        assert out_z_transformed.shape == tf.TensorShape(
+            (self.objects, m_prime, 3)
+        ), out_z_transformed.shape
+
         out_z_flat = tf.reshape(
             out_z_transformed,
-            (
-                self.objects,
-                self._out_z_size,
-            ),
+            (self.objects, self._out_z_size),
         )
 
         output = tf.concat((out_z_flat, out_h), axis=1)
-        assert output.shape == tf.TensorShape(
-            self.objects,
-            64,
-        ), output.shape
+        assert output.shape == tf.TensorShape((self.objects, 64)), output.shape
+
         return output
 
 
