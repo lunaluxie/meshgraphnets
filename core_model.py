@@ -103,7 +103,7 @@ class InvarianceTransform(snt.AbstractModule):
     def _build(self, latent):
         # In shape: [Batch * Latent (in_Z + in_h)]
         # Out shape: [New latent (out_Z + out_h)]
-        assert len(latent.shape) == 1
+        assert len(latent.shape) == 1, latent.shape
         latent = latent.reshape((-1, self._in_z_size + self._in_h_size))
         object_count = latent.shape[0]
 
