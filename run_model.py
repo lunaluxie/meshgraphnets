@@ -42,7 +42,8 @@ flags.DEFINE_enum(
 )
 flags.DEFINE_integer("num_rollouts", 10, "No. of rollout trajectories")
 flags.DEFINE_integer("num_training_steps", int(10e6), "No. of training steps")
-flags.DEFINE_bool("subequivariant", True, "Use subequivariant model")
+flags.DEFINE_bool("subeq_model", False, "Use subequivariant model")
+flags.DEFINE_bool("subeq_layers", False, "Use subequivariant model")
 
 PARAMETERS = {
     "cfd": dict(
@@ -143,15 +144,17 @@ def main(argv):
     tf.enable_resource_variables()
     tf.disable_eager_execution()
     params = PARAMETERS[FLAGS.model]
+    assert not (FLAGS.subeq_model and FLAGS.subeq_layers), "Only one type of subeq"
     learned_model = core_model.EncodeProcessDecode(
         output_size=params["size"]
-        if not FLAGS.subequivariant
+        if not FLAGS.subeq_model
         else params["size"] * 2,  # adjust for subeqv. size -> m'
-        latent_size=128,
+        latent_size=64,
         num_layers=2,
-        message_passing_steps=15,
+        message_passing_steps=10,
+        subeq_layers=FLAGS.subeq_layers,
     )
-    model = params["model"].Model(learned_model, subequivariant=FLAGS.subequivariant)
+    model = params["model"].Model(learned_model, subeq_model=FLAGS.subeq_model)
     if FLAGS.mode == "train":
         learner(model, params)
     elif FLAGS.mode == "eval":

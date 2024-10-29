@@ -26,13 +26,13 @@ import normalization
 class Model(snt.AbstractModule):
     """Model for static cloth simulation."""
 
-    def __init__(self, learned_model, name="Model", subequivariant=True):
+    def __init__(self, learned_model, name="Model", subeq_model=True):
         super(Model, self).__init__(name=name)
 
-        self.subequivariant = subequivariant
+        self.subeq_model = subeq_model
         n_ouput_normalizer = 3
 
-        if self.subequivariant:
+        if self.subeq_model:
             n_node_normalizer = 4 + common.NodeType.SIZE
             n_edge_normalizer = 8  # 2D coord (2) + 3D coord (4) + 2*length = 8
         else:
@@ -68,7 +68,7 @@ class Model(snt.AbstractModule):
         node_type = tf.one_hot(inputs["node_type"][:, 0], common.NodeType.SIZE)
         edge_count = tf.shape(relative_world_pos)[0]
 
-        if self.subequivariant:
+        if self.subeq_model:
             # do the orgthogonalization
             velocity_g = tf.concat(
                 (
@@ -142,7 +142,7 @@ class Model(snt.AbstractModule):
         per_node_network_output = self._learned_model(graph)  # [Node, 3]
 
         # transform back
-        if self.subequivariant:
+        if self.subeq_model:
             network_output = tf.reshape(per_node_network_output, [-1, 3, 2])
             gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 3, 1))
             velocity = inputs["world_pos"] - inputs["prev|world_pos"]  # [Node, 3]
@@ -174,7 +174,7 @@ class Model(snt.AbstractModule):
         network_output = self._learned_model(graph)
 
         # transform back
-        if self.subequivariant:
+        if self.subeq_model:
             network_output = tf.reshape(network_output, [-1, 3, 2])
             gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 3, 1))
             velocity = inputs["world_pos"] - inputs["prev|world_pos"]  # [Node, 3]

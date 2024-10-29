@@ -78,6 +78,16 @@ class GraphNetBlock(snt.AbstractModule):
         return MultiGraph(new_node_features, new_edge_sets)
 
 
+class InvarianceTransform(snt.AbstractModule):
+    def __init__(self, z_size: int, h_size: int, name="InvarianceTransform"):
+        super().__init__(name=name)
+        self._z_size = z_size
+        self._h_size = h_size
+
+    def _build(self, latent):
+        print(latent.shape)
+
+
 class EncodeProcessDecode(snt.AbstractModule):
     """Encode-Process-Decode GraphNet model."""
 
@@ -88,17 +98,22 @@ class EncodeProcessDecode(snt.AbstractModule):
         num_layers,
         message_passing_steps,
         name="EncodeProcessDecode",
+        subeq_layers=False,
     ):
         super(EncodeProcessDecode, self).__init__(name=name)
         self._latent_size = latent_size
         self._output_size = output_size
         self._num_layers = num_layers
         self._message_passing_steps = message_passing_steps
+        self._subeq_layers = subeq_layers
 
     def _make_mlp(self, output_size, layer_norm=True):
         """Builds an MLP."""
         widths = [self._latent_size] * self._num_layers + [output_size]
         network = snt.nets.MLP(widths, activate_final=False)
+        if self._subeq_layers:
+            inv_trans = InvarianceTransform(z_size=50, h_size=14)  # TODO
+            network = snt.Sequential([inv_trans, network])
         if layer_norm:
             network = snt.Sequential([network, snt.LayerNorm()])
         return network
