@@ -40,7 +40,9 @@ class GraphNetBlock(snt.AbstractModule):
         receiver_features = tf.gather(node_features, edge_set.receivers)
         features = [sender_features, receiver_features, edge_set.features]
         with tf.variable_scope(edge_set.name + "_edge_fn"):
-            return self._model_fn()(tf.concat(features, axis=-1))
+            return self._model_fn(neighbours=len(features))(
+                tf.concat(features, axis=-1)
+            )
 
     def _update_node_features(self, node_features, edge_sets):
         """Aggregrates edge features, and applies node function."""
@@ -53,7 +55,9 @@ class GraphNetBlock(snt.AbstractModule):
                 )
             )
         with tf.variable_scope("node_fn"):
-            return self._model_fn()(tf.concat(features, axis=-1))
+            return self._model_fn(neighbours=len(features))(
+                tf.concat(features, axis=-1)
+            )
 
     def _build(self, graph):
         """Applies GraphNetBlock and returns updated MultiGraph."""
@@ -100,12 +104,11 @@ class InvarianceTransform(snt.AbstractModule):
         self._out_z_size = out_z_size
         self._out_h_size = out_h_size
 
-    def _build(self, latent):
+    def _build(self, latent, neighbours: int):
         # In shape: [Batch * Latent (in_Z + in_h)]
         # Out shape: [New latent (out_Z + out_h)]
-        object_count = latent.shape[0]
         latent = tf.reshape(
-            latent, (object_count, -1, self._in_z_size + self._in_h_size)
+            latent, (None, neighbours, self._in_z_size + self._in_h_size)
         )
         neighbor_count = latent.shape[1]
 
@@ -114,39 +117,37 @@ class InvarianceTransform(snt.AbstractModule):
         m_prime = self._out_z_size // 3  # Number of 3D vectors in output
 
         in_z = tf.reshape(
-            latent[:, :, self._in_z_size], (object_count, m * neighbor_count, 3)
+            latent[:, :, self._in_z_size], (None, m * neighbor_count, 3)
         )  # [Node, m * neighbours, Coordinates]
         in_h = tf.reshape(
             latent[:, :, self._in_z_size :],
-            (object_count, self._in_h_size * neighbor_count),
+            (None, self._in_h_size * neighbor_count),
         )  # [Node, h * neighbours]
 
         z_g = tf.concat(
-            (tf.repeat(gravity_vector, object_count, axis=0), in_z), axis=1
+            (tf.repeat(gravity_vector, None, axis=0), in_z), axis=1
         )  # [nodes, 1+(m*neighbours), 3]
         z_orthogonal = tf.einsum(
             "nac,nbc->nab", z_g, z_g
         )  # [Node, (m*neighbours)+1, (m*neighbours)+1]
         z_orthogonal_flat = tf.reshape(
-            z_orthogonal, (object_count, (m * neighbor_count + 1) ** 2)
+            z_orthogonal, (None, (m * neighbor_count + 1) ** 2)
         )
         net_in = tf.reshape(
             tf.concat([z_orthogonal_flat, in_h], axis=1),
             (
-                object_count,
+                None,
                 (m * neighbor_count + 1) ** 2 + self._in_h_size * neighbor_count,
             ),
         )
 
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
         assert net_out.shape == tf.TensorShape(
-            object_count,
+            None,
             (m + 1) * m_prime + self._out_h_size,
         ), f"Strange V_g shape {net_out.shape}"
 
-        out_z = tf.reshape(
-            net_out[:, -self._out_h_size], object_count, ((m + 1), m_prime)
-        )
+        out_z = tf.reshape(net_out[:, -self._out_h_size], None, ((m + 1), m_prime))
         out_h = net_out[:, -self._out_h_size :]
 
         # The first object must correspond with 'ourselves', so we take gravity + this
@@ -155,14 +156,14 @@ class InvarianceTransform(snt.AbstractModule):
         out_z_flat = tf.reshape(
             out_z_transformed,
             (
-                object_count,
+                None,
                 self._out_z_size,
             ),
         )
 
         output = tf.concat((out_z_flat, out_h), axis=1)
         assert output.shape == tf.TensorShape(
-            object_count,
+            None,
             64,
         ), output.shape
         return output
