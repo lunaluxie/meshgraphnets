@@ -27,7 +27,7 @@ class Model(snt.AbstractModule):
     """Model for static cloth simulation."""
 
     def __init__(self, learned_model, name="Model", subeq_model=True):
-        super(Model, self).__init__(name=name)
+        super().__init__(name=name)
 
         self.subeq_model = subeq_model
         n_ouput_normalizer = 3
@@ -66,7 +66,7 @@ class Model(snt.AbstractModule):
         )  # shape [?, 3, 2]
         # [? x(M+1)x3] @ [? x3x(M+1)] = [? x (M+1)x(M+1)]
         coord_orthog = tf.einsum("nca,ncb->nab", coord_g, coord_g)
-        return tf.reshape(coord_orthog, [-1, 4])
+        return tf.reshape(coord_orthog, [object_count, -1])
 
     def _build_graph(self, inputs, is_training):
         """Builds input graph."""
