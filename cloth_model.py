@@ -54,7 +54,7 @@ class Model(snt.AbstractModule):
     @staticmethod
     def _subequivariant_transform(coordinate_array):
         # Input shape: [? (object), 3 (coords)]
-        # Output shape: [? (object), 4 (2 * (m+1)]
+        # Output shape: [? (object), 4 (2 * (m+1))]
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 3, 1))
         object_count = tf.shape(coordinate_array)[0]
         coord_g = tf.concat(
