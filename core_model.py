@@ -170,14 +170,15 @@ class EncodeProcessDecode(snt.AbstractModule):
                 output_size == 64
             ), "This code assumes a output of 64 for subequivariant layers"
             m = 16  # `m` for input and `m_prime` for output are equal here
-            widths = [self._latent_size] * self._num_layers + [(m + 1) * m]
+            h_size = output_size - m * 3
+            widths = [self._latent_size] * self._num_layers + [(m + 1) * m + h_size]
             network = snt.nets.MLP(widths, activate_final=False)
             network = InvarianceTransform(
                 network,
                 in_z_size=m * 3,
-                in_h_size=output_size - m * 3,
+                in_h_size=h_size,
                 out_z_size=m * 3,
-                out_h_size=output_size - m * 3,
+                out_h_size=h_size,
             )
         else:
             widths = [self._latent_size] * self._num_layers + [output_size]
