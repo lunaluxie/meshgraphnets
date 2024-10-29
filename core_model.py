@@ -31,7 +31,7 @@ class GraphNetBlock(snt.AbstractModule):
     """Multi-Edge Interaction Network with residual connections."""
 
     def __init__(self, model_fn, name="GraphNetBlock"):
-        super(GraphNetBlock, self).__init__(name=name)
+        super().__init__(name=name)
         self._model_fn = model_fn
 
     def _update_edge_features(self, node_features, edge_set):
@@ -125,7 +125,7 @@ class InvarianceTransform(snt.AbstractModule):
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
         assert net_out.shape == (
             object_count,
-            self._out_z_size + self._out_h_size,
+            (m + 1) * m_prime + self._out_h_size,
         ), f"Strange V_g shape {net_out.shape}"
 
         out_z = net_out[:, : self._out_z_size].reshape((object_count, (m + 1), m_prime))
