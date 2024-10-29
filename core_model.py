@@ -128,8 +128,10 @@ class InvarianceTransform(snt.AbstractModule):
             (m + 1) * m_prime + self._out_h_size,
         ), f"Strange V_g shape {net_out.shape}"
 
-        out_z = net_out[:, : self._out_z_size].reshape((object_count, (m + 1), m_prime))
-        out_h = net_out[:, self._out_z_size :]
+        out_z = net_out[:, : -self._out_h_size].reshape(
+            (object_count, (m + 1), m_prime)
+        )
+        out_h = net_out[:, -self._out_h_size :]
 
         out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g, out_z)
         assert out_z_transformed.shape == (object_count, m_prime, 3)
