@@ -167,8 +167,6 @@ class EncodeProcessDecode(snt.AbstractModule):
         self, output_size: int, layer_norm: bool = True, subequivariant: bool = False
     ):
         """Builds an MLP."""
-        tf.Print()
-
         if subequivariant:
             assert (
                 output_size == 64
