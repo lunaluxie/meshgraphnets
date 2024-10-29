@@ -137,7 +137,9 @@ class InvarianceTransform(snt.AbstractModule):
         assert out_z_transformed.shape == (object_count, m_prime, 3)
         out_z_flat = out_z_transformed.reshape((object_count, self._out_z_size))
 
-        return tf.concat((out_z_flat, out_h), axis=1)
+        output = tf.concat((out_z_flat, out_h), axis=1)
+        assert output.shape == (object_count, self._out_z_size + self._out_h_size)
+        return output
 
 
 class EncodeProcessDecode(snt.AbstractModule):
