@@ -40,9 +40,9 @@ class GraphNetBlock(snt.AbstractModule):
         receiver_features = tf.gather(node_features, edge_set.receivers)
         features = [sender_features, receiver_features, edge_set.features]
         with tf.variable_scope(edge_set.name + "_edge_fn"):
-            return self._model_fn(neighbours=len(features))(
-                tf.concat(features, axis=-1)
-            )
+            return self._model_fn(
+                neighbours=len(features), objects=tf.shape(edge_set.features)[0]
+            )(tf.concat(features, axis=-1))
 
     def _update_node_features(self, node_features, edge_sets):
         """Aggregrates edge features, and applies node function."""
@@ -55,7 +55,7 @@ class GraphNetBlock(snt.AbstractModule):
                 )
             )
         with tf.variable_scope("node_fn"):
-            return self._model_fn(neighbours=len(features))(
+            return self._model_fn(neighbours=len(features), objects=num_nodes)(
                 tf.concat(features, axis=-1)
             )
 
@@ -93,11 +93,13 @@ class InvarianceTransform(snt.AbstractModule):
         out_z_size: int,
         out_h_size: int,
         neighbours: int,
+        objects: int,
         name="InvarianceTransform",
     ):
         super().__init__(name=name)
         self.network = network
         self.neighbours = neighbours
+        self.objects = objects
         assert in_z_size % 3 == 0, "in_z_size must be a multiple of 3"
         self._in_z_size = in_z_size
         self._in_h_size = in_h_size
@@ -110,18 +112,18 @@ class InvarianceTransform(snt.AbstractModule):
         # In shape: [Batch * Latent (in_Z + in_h)]
         # Out shape: [New latent (out_Z + out_h)]
         latent = tf.reshape(
-            latent, (-1, self.neighbours, self._in_z_size + self._in_h_size)
+            latent, (self.objects, self.neighbours, self._in_z_size + self._in_h_size)
         )
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
         m = self._in_z_size // 3  # Number of 3D vectors in Z == `m` from SOMP
         m_prime = self._out_z_size // 3  # Number of 3D vectors in output
 
         in_z = tf.reshape(
-            latent[:, :, self._in_z_size], (-1, m * self.neighbours, 3)
+            latent[:, :, self._in_z_size], (self.objects, m * self.neighbours, 3)
         )  # [Node, m * neighbours, Coordinates]
         in_h = tf.reshape(
             latent[:, :, self._in_z_size :],
-            (-1, self._in_h_size * self.neighbours),
+            (self.objects, self._in_h_size * self.neighbours),
         )  # [Node, h * neighbours]
 
         z_g = tf.concat(
@@ -131,23 +133,25 @@ class InvarianceTransform(snt.AbstractModule):
             "nac,nbc->nab", z_g, z_g
         )  # [Node, (m*neighbours)+1, (m*neighbours)+1]
         z_orthogonal_flat = tf.reshape(
-            z_orthogonal, (-1, (m * self.neighbours + 1) ** 2)
+            z_orthogonal, (self.objects, (m * self.neighbours + 1) ** 2)
         )
         net_in = tf.reshape(
             tf.concat([z_orthogonal_flat, in_h], axis=1),
             (
-                -1,
+                self.objects,
                 (m * self.neighbours + 1) ** 2 + self._in_h_size * self.neighbours,
             ),
         )
 
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
         assert net_out.shape == tf.TensorShape(
-            None,
+            self.objects,
             (m + 1) * m_prime + self._out_h_size,
         ), f"Strange V_g shape {net_out.shape}"
 
-        out_z = tf.reshape(net_out[:, -self._out_h_size], -1, ((m + 1), m_prime))
+        out_z = tf.reshape(
+            net_out[:, -self._out_h_size], self.objects, ((m + 1), m_prime)
+        )
         out_h = net_out[:, -self._out_h_size :]
 
         # The first object must correspond with 'ourselves', so we take gravity + this
@@ -156,14 +160,14 @@ class InvarianceTransform(snt.AbstractModule):
         out_z_flat = tf.reshape(
             out_z_transformed,
             (
-                -1,
+                self.objects,
                 self._out_z_size,
             ),
         )
 
         output = tf.concat((out_z_flat, out_h), axis=1)
         assert output.shape == tf.TensorShape(
-            None,
+            self.objects,
             64,
         ), output.shape
         return output
