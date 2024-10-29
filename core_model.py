@@ -104,7 +104,9 @@ class InvarianceTransform(snt.AbstractModule):
         # In shape: [Batch, Latent (in_Z + in_h)]
         # Out shape: [Batch, New latent (out_Z + out_h)]
         object_count = latent.shape[0]
-        assert latent.shape == (object_count, self._in_z_size + self._in_h_size)
+        assert latent.shape == tf.TensorShape(
+            object_count, self._in_z_size + self._in_h_size
+        )
 
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
         m = self._in_z_size // 3  # Number of 3D vectors in Z == `m` from SOMP
@@ -123,7 +125,7 @@ class InvarianceTransform(snt.AbstractModule):
         net_in = tf.concat([z_orthogonal_flat, in_h], axis=1)
 
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
-        assert net_out.shape == (
+        assert net_out.shape == tf.TensorShape(
             object_count,
             (m + 1) * m_prime + self._out_h_size,
         ), f"Strange V_g shape {net_out.shape}"
@@ -134,11 +136,11 @@ class InvarianceTransform(snt.AbstractModule):
         out_h = net_out[:, -self._out_h_size :]
 
         out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g, out_z)
-        assert out_z_transformed.shape == (object_count, m_prime, 3)
+        assert out_z_transformed.shape == tf.TensorShape(object_count, m_prime, 3)
         out_z_flat = out_z_transformed.reshape((object_count, self._out_z_size))
 
         output = tf.concat((out_z_flat, out_h), axis=1)
-        assert output.shape == (
+        assert output.shape == tf.TensorShape(
             object_count,
             self._out_z_size + self._out_h_size,
         ), output.shape
