@@ -198,6 +198,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         layer_norm: bool = True,
         subequivariant: bool = False,
         neighbours: int = None,
+        objects: int = None,
     ):
         """Builds an MLP."""
         if subequivariant:
@@ -215,6 +216,7 @@ class EncodeProcessDecode(snt.AbstractModule):
                 out_z_size=m * 3,
                 out_h_size=h_size,
                 neighbours=neighbours,
+                objects=objects,
             )
             assert m * 3 + h_size == 64
         else:
