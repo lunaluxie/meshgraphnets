@@ -138,7 +138,10 @@ class InvarianceTransform(snt.AbstractModule):
         out_z_flat = out_z_transformed.reshape((object_count, self._out_z_size))
 
         output = tf.concat((out_z_flat, out_h), axis=1)
-        assert output.shape == (object_count, self._out_z_size + self._out_h_size)
+        assert output.shape == (
+            object_count,
+            self._out_z_size + self._out_h_size,
+        ), output.shape
         return output
 
 
@@ -182,6 +185,7 @@ class EncodeProcessDecode(snt.AbstractModule):
                 out_z_size=m * 3,
                 out_h_size=h_size,
             )
+            assert m * 3 + h_size == 64
         else:
             widths = [self._latent_size] * self._num_layers + [output_size]
             network = snt.nets.MLP(widths, activate_final=False)
