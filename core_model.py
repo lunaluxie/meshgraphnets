@@ -101,12 +101,11 @@ class InvarianceTransform(snt.AbstractModule):
         self._out_h_size = out_h_size
 
     def _build(self, latent):
-        # In shape: [Batch, Latent (in_Z + in_h)]
-        # Out shape: [Batch, New latent (out_Z + out_h)]
+        # In shape: [Batch * Latent (in_Z + in_h)]
+        # Out shape: [New latent (out_Z + out_h)]
+        assert len(latent.shape) == 1
+        latent = latent.reshape((-1, self._in_z_size + self._in_h_size))
         object_count = latent.shape[0]
-        assert latent.shape == tf.TensorShape(
-            object_count, self._in_z_size + self._in_h_size
-        )
 
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
         m = self._in_z_size // 3  # Number of 3D vectors in Z == `m` from SOMP
@@ -122,26 +121,24 @@ class InvarianceTransform(snt.AbstractModule):
         )  # [nodes, m+1, 3]
         z_orthogonal = tf.einsum("nac,nbc->nab", z_g, z_g)  # [Node, m+1, m+1]
         z_orthogonal_flat = z_orthogonal.reshape((object_count, (m + 1) ** 2))
-        net_in = tf.concat([z_orthogonal_flat, in_h], axis=1)
+        net_in = tf.concat([z_orthogonal_flat, in_h], axis=1).reshape((-1,))
 
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
         assert net_out.shape == tf.TensorShape(
-            object_count,
             (m + 1) * m_prime + self._out_h_size,
         ), f"Strange V_g shape {net_out.shape}"
 
-        out_z = net_out[:, : -self._out_h_size].reshape(
-            (object_count, (m + 1), m_prime)
-        )
-        out_h = net_out[:, -self._out_h_size :]
+        out_z = net_out[: -self._out_h_size].reshape(((m + 1), m_prime))
+        out_h = net_out[-self._out_h_size :]
 
-        out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g, out_z)
-        assert out_z_transformed.shape == tf.TensorShape(object_count, m_prime, 3)
-        out_z_flat = out_z_transformed.reshape((object_count, self._out_z_size))
+        # The first object must correspond with 'ourselves',
+        # and is what we transform back to
+        out_z_transformed = tf.einsum("mc,mb->bc", z_g[0], out_z)
+        assert out_z_transformed.shape == tf.TensorShape(m_prime, 3)
+        out_z_flat = out_z_transformed.reshape((self._out_z_size,))
 
         output = tf.concat((out_z_flat, out_h), axis=1)
         assert output.shape == tf.TensorShape(
-            object_count,
             self._out_z_size + self._out_h_size,
         ), output.shape
         return output
