@@ -96,6 +96,11 @@ class InvarianceTransform(snt.AbstractModule):
         name="InvarianceTransform",
     ):
         super().__init__(name=name)
+        print(
+            f"Setting up InvarianceTransform, "
+            f"{in_z_size}+{in_h_size}->{out_z_size}+{out_h_size}"
+        )
+        assert min(in_z_size, in_h_size, out_z_size, out_h_size) >= 0
         self.network = network
         self.neighbours = neighbours
         assert in_z_size % 3 == 0, "in_z_size must be a multiple of 3"
@@ -109,6 +114,13 @@ class InvarianceTransform(snt.AbstractModule):
     def _build(self, latent):
         # In shape: [Batch x Latent (in_Z + in_h) * Neighbours]
         # Out shape: [Batch x New latent (out_Z + out_h)]
+        latent = tf.Print(
+            latent,
+            [latent],
+            f"InvarianceTransform "
+            f"({self._in_z_size}+{self._in_h_size}->{self._out_z_size}+{self._out_h_size})"
+            f" input shape: ",
+        )
         latent = tf.reshape(
             latent, (-1, self.neighbours, self._in_z_size + self._in_h_size)
         )
@@ -151,18 +163,18 @@ class InvarianceTransform(snt.AbstractModule):
                 (m * self.neighbours + 1) ** 2 + self._in_h_size * self.neighbours,
             ),
         )
-
+        print(f"\tnet_in={net_in.shape}")
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
+        out_z_size = (m * self.neighbours + 1) * m_prime
         assert net_out.shape[1:] == tf.TensorShape(
-            ((m * self.neighbours + 1) * m_prime + self._out_h_size,)
+            (out_z_size + self._out_h_size,)
         ), f"Strange V_g shape {net_out.shape}"
-
         out_z = tf.reshape(
-            net_out[:, : -self._out_h_size],
+            net_out[:, :out_z_size],
             (-1, (m * self.neighbours + 1), m_prime),
         )  # [Node, (m*neighbours)+1, m']
 
-        out_h = net_out[:, -self._out_h_size :]
+        out_h = net_out[:, out_z_size:]
 
         # [Node, m', 3]
         out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g, out_z)
@@ -215,7 +227,7 @@ class EncodeProcessDecode(snt.AbstractModule):
     ):
         """Builds an MLP."""
         if subequivariant:
-            input_size = input_size or self._output_size
+            input_size = input_size or output_size
             m = subeq_input_m or self._subeq_m
             m_prime = subeq_output_m or self._subeq_m
             h_in = input_size - m * 3
@@ -244,6 +256,7 @@ class EncodeProcessDecode(snt.AbstractModule):
     def _encoder(self, graph):
         """Encodes node and edge features into latent features."""
         with tf.variable_scope("encoder"):
+            print("Node encoder!")
             node_latents = self._make_mlp(
                 self._latent_size,
                 subequivariant=True,
@@ -253,12 +266,13 @@ class EncodeProcessDecode(snt.AbstractModule):
             )(graph.node_features)
             new_edges_sets = []
             for edge_set in graph.edge_sets:
+                print("Edge set encoder!")
                 latent = self._make_mlp(
                     self._latent_size,
                     subequivariant=True,
                     neighbours=1,
                     subeq_input_m=1,
-                    input_size=8,
+                    input_size=7,
                 )(edge_set.features)
                 new_edges_sets.append(edge_set._replace(features=latent))
         return MultiGraph(node_latents, new_edges_sets)
@@ -266,12 +280,14 @@ class EncodeProcessDecode(snt.AbstractModule):
     def _decoder(self, graph):
         """Decodes node features from graph."""
         with tf.variable_scope("decoder"):
+            print("Decoder!")
             decoder = self._make_mlp(
                 self._output_size,
                 layer_norm=False,
                 subequivariant=True,
                 neighbours=1,
                 subeq_output_m=1,
+                input_size=self._latent_size,
             )
             return decoder(graph.node_features)
 
@@ -284,5 +300,6 @@ class EncodeProcessDecode(snt.AbstractModule):
         )
         latent_graph = self._encoder(graph)
         for _ in range(self._message_passing_steps):
+            print("Graph net block!")
             latent_graph = GraphNetBlock(model_fn)(latent_graph)
         return self._decoder(latent_graph)

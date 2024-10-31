@@ -45,7 +45,7 @@ flags.DEFINE_integer("num_rollouts", 10, "No. of rollout trajectories")
 flags.DEFINE_integer("num_training_steps", int(10e6), "No. of training steps")
 flags.DEFINE_bool("subeq_model", False, "Use subequivariant model")
 flags.DEFINE_bool("subeq_layers", False, "Use subequivariant model")
-flags.DEFINE_integer("subeq_m", False, "Number of 3D facets `m` in Z")
+flags.DEFINE_integer("subeq_m", 16, "Number of 3D facets `m` in Z")
 flags.DEFINE_bool("subeq_encoder", False, "Use subequivariant model")
 flags.DEFINE_float("rotation_angle", 0.0, "Rotation angle for evaluation")
 
