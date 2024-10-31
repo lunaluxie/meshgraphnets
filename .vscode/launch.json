@@ -5,9 +5,9 @@
             "name": "Python Debugger: Current File with Arguments",
             "type": "debugpy",
             "request": "launch",
-            "program": "C:/Users/patri/OneDrive/Desktop/gitprojs/mesh/deepmind-research/meshgraphnets/run_model.py",
+            "program": "${workspaceFolder}/run_model.py",
             "console": "integratedTerminal",
-            "cwd": "C:/Users/patri/OneDrive/Desktop/gitprojs/mesh/deepmind-research", // Sets the working directory to the workspace folder
+            "cwd": "${workspaceFolder}", // Sets the working directory to the workspace folder
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"},
             "args": [
@@ -23,9 +23,9 @@
             "name": "Python Debugger: TRAIN",
             "type": "debugpy",
             "request": "launch",
-            "program": "C:/Users/patri/OneDrive/Desktop/gitprojs/mesh/deepmind-research/meshgraphnets/run_model.py",
+            "program": "${workspaceFolder}/run_model.py",
             "console": "integratedTerminal",
-            "cwd": "C:/Users/patri/OneDrive/Desktop/gitprojs/mesh/deepmind-research", // Sets the working directory to the workspace folder
+            "cwd": "${workspaceFolder}", // Sets the working directory to the workspace folder
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"},
             "args": [
@@ -36,6 +36,6 @@
             ],
             "justMyCode": true
         }
-        
+
     ]
 }
