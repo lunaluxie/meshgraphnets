@@ -42,7 +42,6 @@ class GraphNetBlock(snt.AbstractModule):
         with tf.variable_scope(edge_set.name + "_edge_fn"):
             return self._model_fn(
                 neighbours=len(features),
-                objects=9212,  # TODO: hard coded object count
             )(tf.concat(features, axis=-1))
 
     def _update_node_features(self, node_features, edge_sets):
@@ -58,7 +57,6 @@ class GraphNetBlock(snt.AbstractModule):
         with tf.variable_scope("node_fn"):
             return self._model_fn(
                 neighbours=len(features),
-                objects=1579,  # TODO: hard coded object count
             )(tf.concat(features, axis=-1))
 
     def _build(self, graph):
@@ -95,13 +93,11 @@ class InvarianceTransform(snt.AbstractModule):
         out_z_size: int,
         out_h_size: int,
         neighbours: int,
-        objects: int,
         name="InvarianceTransform",
     ):
         super().__init__(name=name)
         self.network = network
         self.neighbours = neighbours
-        self.objects = objects
         assert in_z_size % 3 == 0, "in_z_size must be a multiple of 3"
         self._in_z_size = in_z_size
         self._in_h_size = in_h_size
@@ -111,21 +107,20 @@ class InvarianceTransform(snt.AbstractModule):
         self._out_h_size = out_h_size
 
     def _build(self, latent):
-        # In shape: [Batch * Latent (in_Z + in_h)]
-        # Out shape: [New latent (out_Z + out_h)]
-        latent.set_shape((self.objects, self.neighbours * 64))
+        # In shape: [Batch x Latent (in_Z + in_h) * Neighbours]
+        # Out shape: [Batch x New latent (out_Z + out_h)]
         latent = tf.reshape(
-            latent, (self.objects, self.neighbours, self._in_z_size + self._in_h_size)
+            latent, (-1, self.neighbours, self._in_z_size + self._in_h_size)
         )
         gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
         m = self._in_z_size // 3  # Number of 3D vectors in Z == `m` from SOMP
         m_prime = self._out_z_size // 3  # Number of 3D vectors in output
         in_z = tf.reshape(
-            latent[:, :, : self._in_z_size], (self.objects, m * self.neighbours, 3)
+            latent[:, :, : self._in_z_size], (-1, m * self.neighbours, 3)
         )  # [Node, m * neighbours, Coordinates]
         in_h = tf.reshape(
             latent[:, :, self._in_z_size :],
-            (self.objects, self._in_h_size * self.neighbours),
+            (-1, self._in_h_size * self.neighbours),
         )  # [Node, h * neighbours]
 
         z_g = tf.concat(
@@ -137,13 +132,13 @@ class InvarianceTransform(snt.AbstractModule):
         )  # [Node, (m*neighbours)+1, (m*neighbours)+1]
 
         z_orthogonal_flat = tf.reshape(
-            z_orthogonal, (self.objects, (m * self.neighbours + 1) ** 2)
+            z_orthogonal, (-1, (m * self.neighbours + 1) ** 2)
         )
 
         net_in = tf.reshape(
             tf.concat([z_orthogonal_flat, in_h], axis=1),
             (
-                self.objects,
+                -1,
                 (m * self.neighbours + 1) ** 2 + self._in_h_size * self.neighbours,
             ),
         )
@@ -151,32 +146,31 @@ class InvarianceTransform(snt.AbstractModule):
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
         assert net_out.shape == tf.TensorShape(
             (
-                self.objects,
-                (m + 1) * m_prime + self._out_h_size,
+                None,
+                (m * self.neighbours + 1) * m_prime + self._out_h_size,
             )
         ), f"Strange V_g shape {net_out.shape}"
 
         out_z = tf.reshape(
             net_out[:, : -self._out_h_size],
-            (self.objects, (m + 1), m_prime),
-        )
+            (-1, (m * self.neighbours + 1), m_prime),
+        )  # [Node, (m*neighbours)+1, m']
 
         out_h = net_out[:, -self._out_h_size :]
 
-        # The first object must correspond with 'ourselves', so we take gravity + this
-        out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g[:, : m + 1], out_z)
+        # [Node, m', 3]
+        out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g, out_z)
         assert out_z_transformed.shape == tf.TensorShape(
-            (self.objects, m_prime, 3)
+            (None, m_prime, 3)
         ), out_z_transformed.shape
 
+        # [Node, m' * 3 = out_Z]
         out_z_flat = tf.reshape(
             out_z_transformed,
-            (self.objects, self._out_z_size),
+            (-1, self._out_z_size),
         )
 
         output = tf.concat((out_z_flat, out_h), axis=1)
-        assert output.shape == tf.TensorShape((self.objects, 64)), output.shape
-
         return output
 
 
@@ -191,6 +185,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         message_passing_steps,
         name="EncodeProcessDecode",
         subeq_layers=False,
+        subeq_m: int = 16,
     ):
         super().__init__(name=name)
         self._latent_size = latent_size
@@ -198,6 +193,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         self._num_layers = num_layers
         self._message_passing_steps = message_passing_steps
         self._subeq_layers = subeq_layers
+        self._subeq_m = subeq_m
 
     def _make_mlp(
         self,
@@ -205,16 +201,15 @@ class EncodeProcessDecode(snt.AbstractModule):
         layer_norm: bool = True,
         subequivariant: bool = False,
         neighbours: int = None,
-        objects: int = None,
     ):
         """Builds an MLP."""
         if subequivariant:
-            assert (
-                output_size == 64
-            ), "This code assumes a output of 64 for subequivariant layers"
-            m = 16  # `m` for input and `m_prime` for output are equal here
+            m = self._subeq_m  # `m` for input and `m_prime` for output are equal here
             h_size = output_size - m * 3
-            widths = [self._latent_size] * self._num_layers + [(m + 1) * m + h_size]
+            widths = [self._latent_size] * self._num_layers + [
+                (m * neighbours + 1) * m + h_size
+            ]
+
             network = snt.nets.MLP(widths, activate_final=False)
             network = InvarianceTransform(
                 network,
@@ -223,9 +218,7 @@ class EncodeProcessDecode(snt.AbstractModule):
                 out_z_size=m * 3,
                 out_h_size=h_size,
                 neighbours=neighbours,
-                objects=objects,
             )
-            assert m * 3 + h_size == 64
         else:
             widths = [self._latent_size] * self._num_layers + [output_size]
             network = snt.nets.MLP(widths, activate_final=False)
