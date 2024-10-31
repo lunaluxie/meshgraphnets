@@ -78,7 +78,7 @@ class Model(snt.AbstractModule):
         senders, receivers = common.triangles_to_edges(inputs["cells"])
         edge_rel_world_pos = tf.gather(inputs["world_pos"], senders) - tf.gather(
             inputs["world_pos"], receivers
-        )  # [7000 (Edges) x 3 (Coords)]
+        )  # [9000 (Edges) x 3 (Coords)]
         edge_relative_mesh_pos = tf.gather(inputs["mesh_pos"], senders) - tf.gather(
             inputs["mesh_pos"], receivers
         )
@@ -109,9 +109,7 @@ class Model(snt.AbstractModule):
         )
 
         return core_model.MultiGraph(
-            node_features=self._node_normalizer(
-                node_features, is_training
-            ),  # shape [Node, 4+9=13]
+            node_features=self._node_normalizer(node_features, is_training),
             edge_sets=[edge_set],
         )
 

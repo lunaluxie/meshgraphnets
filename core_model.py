@@ -191,6 +191,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         message_passing_steps,
         name="EncodeProcessDecode",
         subeq_layers=False,
+        subeq_encoder=False,
         subeq_m: int = 16,
     ):
         super().__init__(name=name)
@@ -199,6 +200,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         self._num_layers = num_layers
         self._message_passing_steps = message_passing_steps
         self._subeq_layers = subeq_layers
+        self._subeq_encoder = subeq_encoder
         self._subeq_m = subeq_m
 
     def _make_mlp(
@@ -207,22 +209,28 @@ class EncodeProcessDecode(snt.AbstractModule):
         layer_norm: bool = True,
         subequivariant: bool = False,
         neighbours: int = None,
+        subeq_output_m: int = None,
+        subeq_input_m: int = None,
+        input_size: int = None,
     ):
         """Builds an MLP."""
         if subequivariant:
-            m = self._subeq_m  # `m` for input and `m_prime` for output are equal here
-            h_size = output_size - m * 3
+            input_size = input_size or self._output_size
+            m = subeq_input_m or self._subeq_m
+            m_prime = subeq_output_m or self._subeq_m
+            h_in = input_size - m * 3
+            h_out = output_size - m_prime * 3
             widths = [self._latent_size] * self._num_layers + [
-                (m * neighbours + 1) * m + h_size
+                (m * neighbours + 1) * m_prime + h_out
             ]
 
             network = snt.nets.MLP(widths, activate_final=False)
             network = InvarianceTransform(
                 network,
                 in_z_size=m * 3,
-                in_h_size=h_size,
-                out_z_size=m * 3,
-                out_h_size=h_size,
+                in_h_size=h_in,
+                out_z_size=m_prime * 3,
+                out_h_size=h_out,
                 neighbours=neighbours,
             )
         else:
@@ -236,17 +244,35 @@ class EncodeProcessDecode(snt.AbstractModule):
     def _encoder(self, graph):
         """Encodes node and edge features into latent features."""
         with tf.variable_scope("encoder"):
-            node_latents = self._make_mlp(self._latent_size)(graph.node_features)
+            node_latents = self._make_mlp(
+                self._latent_size,
+                subequivariant=True,
+                neighbours=1,
+                subeq_input_m=1,
+                input_size=12,
+            )(graph.node_features)
             new_edges_sets = []
             for edge_set in graph.edge_sets:
-                latent = self._make_mlp(self._latent_size)(edge_set.features)
+                latent = self._make_mlp(
+                    self._latent_size,
+                    subequivariant=True,
+                    neighbours=1,
+                    subeq_input_m=1,
+                    input_size=8,
+                )(edge_set.features)
                 new_edges_sets.append(edge_set._replace(features=latent))
         return MultiGraph(node_latents, new_edges_sets)
 
     def _decoder(self, graph):
         """Decodes node features from graph."""
         with tf.variable_scope("decoder"):
-            decoder = self._make_mlp(self._output_size, layer_norm=False)
+            decoder = self._make_mlp(
+                self._output_size,
+                layer_norm=False,
+                subequivariant=True,
+                neighbours=1,
+                subeq_output_m=1,
+            )
             return decoder(graph.node_features)
 
     def _build(self, graph):

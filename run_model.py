@@ -45,6 +45,8 @@ flags.DEFINE_integer("num_rollouts", 10, "No. of rollout trajectories")
 flags.DEFINE_integer("num_training_steps", int(10e6), "No. of training steps")
 flags.DEFINE_bool("subeq_model", False, "Use subequivariant model")
 flags.DEFINE_bool("subeq_layers", False, "Use subequivariant model")
+flags.DEFINE_integer("subeq_m", False, "Number of 3D facets `m` in Z")
+flags.DEFINE_bool("subeq_encoder", False, "Use subequivariant model")
 flags.DEFINE_float("rotation_angle", 0.0, "Rotation angle for evaluation")
 
 PARAMETERS = {
@@ -149,6 +151,10 @@ def main(argv):
     tf.disable_eager_execution()
     params = PARAMETERS[FLAGS.model]
     assert not (FLAGS.subeq_model and FLAGS.subeq_layers), "Only one type of subeq"
+    assert (
+        not FLAGS.subeq_encoder
+    ) or FLAGS.subeq_layers, "Encoder only subeq with subeq layers"
+
     learned_model = core_model.EncodeProcessDecode(
         output_size=params["size"]
         if not FLAGS.subeq_model
@@ -157,6 +163,8 @@ def main(argv):
         num_layers=2,
         message_passing_steps=10,
         subeq_layers=FLAGS.subeq_layers,
+        subeq_m=FLAGS.subeq_m,
+        subeq_encoder=FLAGS.subeq_encoder,
     )
     model = params["model"].Model(learned_model, subeq_model=FLAGS.subeq_model)
     if FLAGS.mode == "train":

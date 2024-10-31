@@ -22,8 +22,9 @@ from absl import app, flags
 from matplotlib import animation
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('rollout_path', None, 'Path to rollout pickle file')
+flags.DEFINE_string("rollout_path", None, "Path to rollout pickle file")
 flags.DEFINE_bool("use_gt", False, "Whether to animate the ground truth")
+
 
 def main(unused_argv):
     with open(FLAGS.rollout_path, "rb") as fp:
