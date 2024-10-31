@@ -112,7 +112,6 @@ class InvarianceTransform(snt.AbstractModule):
         latent = tf.reshape(
             latent, (-1, self.neighbours, self._in_z_size + self._in_h_size)
         )
-        gravity_vector = tf.constant([0, 0, 1], dtype=tf.float32, shape=(1, 1, 3))
         m = self._in_z_size // 3  # Number of 3D vectors in Z == `m` from SOMP
         m_prime = self._out_z_size // 3  # Number of 3D vectors in output
         in_z = tf.reshape(
@@ -123,8 +122,18 @@ class InvarianceTransform(snt.AbstractModule):
             (-1, self._in_h_size * self.neighbours),
         )  # [Node, h * neighbours]
 
+        gravity_repeated = tf.tile(
+            tf.constant(
+                [0, 0, 1],
+                dtype=tf.float32,
+                shape=(1, 1, 3),
+            ),
+            (tf.shape(latent)[0], 1, 1),
+        )
+        assert gravity_repeated.shape[1:] == tf.TensorShape((1, 3))
+
         z_g = tf.concat(
-            (tf.repeat(gravity_vector, latent.shape[0], axis=0), in_z), axis=1
+            (gravity_repeated, in_z), axis=1
         )  # [nodes, 1+(m*neighbours), 3]
 
         z_orthogonal = tf.einsum(
@@ -144,11 +153,8 @@ class InvarianceTransform(snt.AbstractModule):
         )
 
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
-        assert net_out.shape == tf.TensorShape(
-            (
-                None,
-                (m * self.neighbours + 1) * m_prime + self._out_h_size,
-            )
+        assert net_out.shape[1:] == tf.TensorShape(
+            ((m * self.neighbours + 1) * m_prime + self._out_h_size,)
         ), f"Strange V_g shape {net_out.shape}"
 
         out_z = tf.reshape(
@@ -160,8 +166,8 @@ class InvarianceTransform(snt.AbstractModule):
 
         # [Node, m', 3]
         out_z_transformed = tf.einsum("nmc,nmb->nbc", z_g, out_z)
-        assert out_z_transformed.shape == tf.TensorShape(
-            (None, m_prime, 3)
+        assert out_z_transformed.shape[1:] == tf.TensorShape(
+            (m_prime, 3)
         ), out_z_transformed.shape
 
         # [Node, m' * 3 = out_Z]
