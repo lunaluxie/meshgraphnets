@@ -22,8 +22,8 @@ from absl import app, flags
 from matplotlib import animation
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string("rollout_path", None, "Path to rollout pickle file")
-
+flags.DEFINE_string('rollout_path', None, 'Path to rollout pickle file')
+flags.DEFINE_bool("use_gt", False, "Whether to animate the ground truth")
 
 def main(unused_argv):
     with open(FLAGS.rollout_path, "rb") as fp:
@@ -50,14 +50,22 @@ def main(unused_argv):
         ax.set_xlim([bound[0][0], bound[1][0]])
         ax.set_ylim([bound[0][1], bound[1][1]])
         ax.set_zlim([bound[0][2], bound[1][2]])
-        pos = rollout_data[traj]["pred_pos"][step]
+
+        pos_key = "gt_pos" if FLAGS.use_gt else "pred_pos"
+        pos = rollout_data[traj][pos_key][step]  # pred_pos
         faces = rollout_data[traj]["faces"][step]
         ax.plot_trisurf(pos[:, 0], pos[:, 1], faces, pos[:, 2], shade=True)
         ax.set_title("Trajectory %d Step %d" % (traj, step))
         return (fig,)
 
-    _ = animation.FuncAnimation(fig, animate, frames=num_frames, interval=100)
-    plt.show(block=True)
+    anim = animation.FuncAnimation(fig, animate, frames=num_frames, interval=100)
+    writervideo = animation.FFMpegWriter(fps=50 // skip)  # realtime using dt=0.02s
+    anim.save(
+        ".".join(
+            [FLAGS.rollout_path.split(".")[0], "gt" if FLAGS.use_gt else "pred", "mp4"]
+        ),
+        writer=writervideo,
+    )
 
 
 if __name__ == "__main__":

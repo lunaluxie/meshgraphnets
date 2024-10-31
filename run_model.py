@@ -18,7 +18,7 @@
 import pickle
 
 import numpy as np
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 from absl import app, flags, logging
 
 import cfd_eval
@@ -27,6 +27,7 @@ import cloth_eval
 import cloth_model
 import core_model
 import dataset
+from utils import rotation_matrix_z
 
 FLAGS = flags.FLAGS
 flags.DEFINE_enum("mode", "train", ["train", "eval"], "Train model, or run evaluation.")
@@ -118,7 +119,9 @@ def evaluator(model, params):
     ds = dataset.load_dataset(FLAGS.dataset_dir, FLAGS.rollout_split)
     ds = dataset.add_targets(ds, [params["field"]], add_history=params["history"])
     inputs = tf.data.make_one_shot_iterator(ds).get_next()
-    scalar_op, traj_ops = params["evaluator"].evaluate(model, inputs)
+    scalar_op, traj_ops = params["evaluator"].evaluate(
+        model, inputs, rotation_matrix=rotation_matrix_z(float(FLAGS.rotation_angle))
+    )
     tf.train.create_global_step()
 
     with tf.train.MonitoredTrainingSession(

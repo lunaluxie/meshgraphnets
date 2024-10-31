@@ -47,8 +47,10 @@ def _rollout(model, initial_state, num_steps):
     return output.stack()
 
 
-def evaluate(model, inputs):
+def evaluate(model, inputs, rotation_matrix=tf.eye(3)):
     """Performs model rollouts and create stats."""
+    inputs["world_pos"] = tf.einsum("sni,ij->snj", inputs["world_pos"], rotation_matrix)
+
     initial_state = {k: v[0] for k, v in inputs.items()}
     num_steps = inputs["cells"].shape[0]
     prediction = _rollout(model, initial_state, num_steps)
