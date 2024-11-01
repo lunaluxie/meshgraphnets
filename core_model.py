@@ -96,10 +96,6 @@ class InvarianceTransform(snt.AbstractModule):
         name="InvarianceTransform",
     ):
         super().__init__(name=name)
-        print(
-            f"Setting up InvarianceTransform, "
-            f"{in_z_size}+{in_h_size}->{out_z_size}+{out_h_size}"
-        )
         assert min(in_z_size, in_h_size, out_z_size, out_h_size) >= 0
         self.network = network
         self.neighbours = neighbours
@@ -114,13 +110,6 @@ class InvarianceTransform(snt.AbstractModule):
     def _build(self, latent):
         # In shape: [Batch x Latent (in_Z + in_h) * Neighbours]
         # Out shape: [Batch x New latent (out_Z + out_h)]
-        latent = tf.Print(
-            latent,
-            [latent],
-            f"InvarianceTransform "
-            f"({self._in_z_size}+{self._in_h_size}->{self._out_z_size}+{self._out_h_size})"
-            f" input shape: ",
-        )
         latent = tf.reshape(
             latent, (-1, self.neighbours, self._in_z_size + self._in_h_size)
         )
@@ -163,7 +152,6 @@ class InvarianceTransform(snt.AbstractModule):
                 (m * self.neighbours + 1) ** 2 + self._in_h_size * self.neighbours,
             ),
         )
-        print(f"\tnet_in={net_in.shape}")
         net_out = self.network(net_in)  # Network output, called `V_g` in SOMP
         out_z_size = (m * self.neighbours + 1) * m_prime
         assert net_out.shape[1:] == tf.TensorShape(
@@ -256,7 +244,6 @@ class EncodeProcessDecode(snt.AbstractModule):
     def _encoder(self, graph):
         """Encodes node and edge features into latent features."""
         with tf.variable_scope("encoder"):
-            print("Node encoder!")
             node_latents = self._make_mlp(
                 self._latent_size,
                 subequivariant=True,
@@ -266,7 +253,6 @@ class EncodeProcessDecode(snt.AbstractModule):
             )(graph.node_features)
             new_edges_sets = []
             for edge_set in graph.edge_sets:
-                print("Edge set encoder!")
                 latent = self._make_mlp(
                     self._latent_size,
                     subequivariant=True,
@@ -280,7 +266,6 @@ class EncodeProcessDecode(snt.AbstractModule):
     def _decoder(self, graph):
         """Decodes node features from graph."""
         with tf.variable_scope("decoder"):
-            print("Decoder!")
             decoder = self._make_mlp(
                 self._output_size,
                 layer_norm=False,
@@ -300,6 +285,5 @@ class EncodeProcessDecode(snt.AbstractModule):
         )
         latent_graph = self._encoder(graph)
         for _ in range(self._message_passing_steps):
-            print("Graph net block!")
             latent_graph = GraphNetBlock(model_fn)(latent_graph)
         return self._decoder(latent_graph)
