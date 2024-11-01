@@ -246,7 +246,7 @@ class EncodeProcessDecode(snt.AbstractModule):
         with tf.variable_scope("encoder"):
             node_latents = self._make_mlp(
                 self._latent_size,
-                subequivariant=True,
+                subequivariant=self._subeq_encoder,
                 neighbours=1,
                 subeq_input_m=1,
                 input_size=12,
@@ -255,7 +255,7 @@ class EncodeProcessDecode(snt.AbstractModule):
             for edge_set in graph.edge_sets:
                 latent = self._make_mlp(
                     self._latent_size,
-                    subequivariant=True,
+                    subequivariant=self._subeq_encoder,
                     neighbours=1,
                     subeq_input_m=1,
                     input_size=7,
@@ -269,7 +269,7 @@ class EncodeProcessDecode(snt.AbstractModule):
             decoder = self._make_mlp(
                 self._output_size,
                 layer_norm=False,
-                subequivariant=True,
+                subequivariant=self._subeq_encoder,
                 neighbours=1,
                 subeq_output_m=1,
                 input_size=self._latent_size,
