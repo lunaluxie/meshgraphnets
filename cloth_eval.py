@@ -47,8 +47,21 @@ def _rollout(model, initial_state, num_steps):
     return output.stack()
 
 
-def evaluate(model, inputs, rotation_matrix=tf.eye(3)):
+def evaluate(model, inputs, rotation_matrix=tf.eye(3), translation_vector=tf.zeros(3)):
     """Performs model rollouts and create stats."""
+
+    # translate
+    translation_vector = tf.expand_dims(translation_vector, axis=0)
+    translation_vector = tf.expand_dims(translation_vector, axis=0)
+    translation_vector = tf.repeat(
+        translation_vector, inputs["world_pos"].shape[0], axis=0
+    )
+    translation_vector = tf.repeat(
+        translation_vector, inputs["world_pos"].shape[1], axis=1
+    )
+    inputs["world_pos"] = inputs["world_pos"] + translation_vector
+
+    # rotate
     inputs["world_pos"] = tf.einsum("sni,ij->snj", inputs["world_pos"], rotation_matrix)
 
     initial_state = {k: v[0] for k, v in inputs.items()}

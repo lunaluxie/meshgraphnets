@@ -48,6 +48,9 @@ flags.DEFINE_bool("subeq_layers", False, "Use subequivariant model")
 flags.DEFINE_integer("subeq_m", 16, "Number of 3D facets `m` in Z")
 flags.DEFINE_bool("subeq_encoder", False, "Use subequivariant model")
 flags.DEFINE_float("rotation_angle", 0.0, "Rotation angle for evaluation")
+flags.DEFINE_float("translation_x", 0.0, "Translation x for evaluation")
+flags.DEFINE_float("translation_y", 0.0, "Translation y for evaluation")
+flags.DEFINE_float("translation_z", 0.0, "Translation z for evaluation")
 
 PARAMETERS = {
     "cfd": dict(
@@ -123,7 +126,13 @@ def evaluator(model, params):
     ds = dataset.add_targets(ds, [params["field"]], add_history=params["history"])
     inputs = tf.data.make_one_shot_iterator(ds).get_next()
     scalar_op, traj_ops = params["evaluator"].evaluate(
-        model, inputs, rotation_matrix=rotation_matrix_z(float(FLAGS.rotation_angle))
+        model,
+        inputs,
+        rotation_matrix=rotation_matrix_z(float(FLAGS.rotation_angle)),
+        translation_vector=tf.constant(
+            [FLAGS.translation_x, FLAGS.translation_y, FLAGS.translation_z],
+            dtype=tf.float32,
+        ),
     )
     tf.train.create_global_step()
 
