@@ -60,9 +60,17 @@ def evaluate(model, inputs, rotation_matrix=tf.eye(3), translation_vector=tf.zer
         translation_vector, inputs["world_pos"].shape[1], axis=1
     )
     inputs["world_pos"] = inputs["world_pos"] + translation_vector
+    inputs["prev|world_pos"] = inputs["prev|world_pos"] + translation_vector
+    inputs["target|world_pos"] = inputs["target|world_pos"] + translation_vector
 
     # rotate
     inputs["world_pos"] = tf.einsum("sni,ij->snj", inputs["world_pos"], rotation_matrix)
+    inputs["prev|world_pos"] = tf.einsum(
+        "sni,ij->snj", inputs["prev|world_pos"], rotation_matrix
+    )
+    inputs["target|world_pos"] = tf.einsum(
+        "sni,ij->snj", inputs["target|world_pos"], rotation_matrix
+    )
 
     initial_state = {k: v[0] for k, v in inputs.items()}
     num_steps = inputs["cells"].shape[0]
