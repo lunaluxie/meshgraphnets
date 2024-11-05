@@ -19,7 +19,7 @@ The table shows the mean square error of prediction in base coordinates vs predi
 | **$MSE_{subeqv}$** | **Machine Precision**              | **Base**                  | **Model Subeqv.**          | **Layer Subeqv.**            |
 |----------------------------|-------------------------------|---------------------------|----------------------------|------------------------------|
 | **Step 5**                 | $(2.6 \pm 0.7)\cdot 10^{-16}$ | $(3 \pm 1)\cdot 10^{-5}$  | $(8 \pm 2)\cdot 10^{-15}$  | $(2.3 \pm 0.9)\cdot 10^{-6}$ |
-| **Step 500**               | $(2 \pm 1)\cdot 10^{-16}$     | $(3 \pm 2)\cdot 10^{-2} $ | $ (3 \pm 6)\cdot 10^{-5} $ | $ (10 \pm 3)\cdot 10^{-4}$   |
+| **Step 500**               | $(2 \pm 1)\cdot 10^{-16}$     | $(3 \pm 2)\cdot 10^{-2} $ | $(3 \pm 6)\cdot 10^{-5} $ | $(10 \pm 3)\cdot 10^{-4}$   |
 
 ## Run 
 
