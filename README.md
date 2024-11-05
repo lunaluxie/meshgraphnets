@@ -5,70 +5,74 @@
 This is an experiment trying to extend [Learning Mesh-Based Simulation with Graph Networks](https://arxiv.org/abs/2010.03409) ([code](https://github.com/google-deepmind/deepmind-research/tree/master/meshgraphnets)) by making the model subequivariant as described in [Learning Physical Dynamics with Subequivariant Graph Neural Networks](https://arxiv.org/abs/2210.06876) ([code](https://github.com/hanjq17/SGNN)). 
 
 
-## From Original readme:
-This release contains the full datasets used in the paper, as well as data
-loaders (dataset.py), and the learned model core (core_model.py).
-These components are designed to work with all of our domains.
+![figure](images/figure.png)
 
-We also include demonstration code for a full training and evaluation pipeline,
-for the `cylinder_flow` and `flag_simple` domains only. This
-includes graph encoding, evaluation, rollout and plotting trajectory.
-Refer to the respective `cfd_*` and `cloth_*` files for details.
+The code was intially forked from [meshgraphnets](https://arxiv.org/abs/2010.03409) and modified to include the subequivariant extensions.
 
-## Setup
+## Method
 
-Prepare environment, install dependencies:
+![method](images/method_illustration.png)
 
-    virtualenv --python=python3.6 "${ENV}"
-    ${ENV}/bin/activate
-    pip install -r meshgraphnets/requirements.txt
+The table shows the mean square error of prediction in base coordinates vs prediction in rotated coordinates rotated back (equivariant prediction), so how consistent the models are under rotation. Lower is better. 
 
-Download a dataset:
 
-    mkdir -p ${DATA}
-    bash meshgraphnets/download_dataset.sh flag_simple ${DATA}
+| **$MSE_{subeqv}$** | **Machine Precision**              | **Base**                  | **Model Subeqv.**          | **Layer Subeqv.**            |
+|----------------------------|-------------------------------|---------------------------|----------------------------|------------------------------|
+| **Step 5**                 | $(2.6 \pm 0.7)\cdot 10^{-16}$ | $(3 \pm 1)\cdot 10^{-5}$  | $(8 \pm 2)\cdot 10^{-15}$  | $(2.3 \pm 0.9)\cdot 10^{-6}$ |
+| **Step 500**               | $(2 \pm 1)\cdot 10^{-16}$     | $(3 \pm 2)\cdot 10^{-2} $ | $ (3 \pm 6)\cdot 10^{-5} $ | $ (10 \pm 3)\cdot 10^{-4}$   |
 
-## Running the model
+## Run 
 
-Train a model:
+Download dataset:
 
-    python -m meshgraphnets.run_model --mode=train --model=cloth \
-        --checkpoint_dir=${DATA}/chk --dataset_dir=${DATA}/flag_simple
+```sh
+export DATA=/path/to/data
+download_dataset.sh sphere_simple ${DATA}
+```
 
-Generate some trajectory rollouts:
+Set up environment:
 
-    python -m meshgraphnets.run_model --mode=eval --model=cloth \
-        --checkpoint_dir=${DATA}/chk --dataset_dir=${DATA}/flag_simple \
-        --rollout_path=${DATA}/rollout_flag.pkl
+```sh
+virtualenv --python=python3.6 "${ENV}"
+${ENV}/bin/activate
+pip install -r requirements.txt
+```
 
-Plot a trajectory:
+Train and evaluate the model:
 
-    python -m meshgraphnets.plot_cloth --rollout_path=${DATA}/rollout_flag.pkl
+First run with `MODE=train` to train the model, then run with `MODE=eval` to evaluate the model. `rotation_angle` is ignored when `MODE=train`. You can also use `translate_[x,y,z]` to translate the coordinate system. The coordinate system is translated then rotated. 
 
-The instructions above train a model for the `flag_simple` domain; for
-the `cylinder_flow` dataset, use `--model=cfd` and the `plot_cfd` script.
+```sh
+export MODE=eval # or train
 
-## Datasets
+## sphere/base
+python run_model.py --mode=${MODE} --model=cloth \
+        --checkpoint_dir=${DATA}/chk/chk_sphere_base \
+        --dataset_dir=${DATA}/sphere_simple \
+        --rollout_path=${DATA}/rollout_sphere_base_45.pkl \
+        --rotation_angle=45
 
-Datasets can be downloaded using the script `download_dataset.sh`. They contain
-a metadata file describing the available fields and their shape, and tfrecord
-datasets for train, valid and test splits.
-Dataset names match the naming in the paper.
-The following datasets are available:
+## sphere/model
+python run_model.py --mode=${MODE} --model=cloth \
+        --checkpoint_dir=${DATA}/chk/chk_sphere_model \
+        --dataset_dir=${DATA}/sphere_simple \
+        --rollout_path=${DATA}/rollout_sphere_model_45.pkl \
+        --subeq_model \
+        --rotation_angle=45
 
-    airfoil
-    cylinder_flow
-    deforming_plate
-    flag_minimal
-    flag_simple
-    flag_dynamic
-    flag_dynamic_sizing
-    sphere_simple
-    sphere_dynamic
-    sphere_dynamic_sizing
 
-`flag_minimal` is a truncated version of flag_simple, and is only used for
-integration tests. `flag_dynamic_sizing` and `sphere_dynamic_sizing` can be
-used to learn the sizing field. These datasets have the same structure as
-the other datasets, but contain the meshes in their state before remeshing,
-and define a matching `sizing_field` target for each mesh.
+## sphere/layers
+python run_model.py --mode=${MODE} --model=cloth \
+        --checkpoint_dir=${DATA}/chk/chk_sphere_layers \
+        kv--dataset_dir=${DATA}/sphere_simple \
+        --rollout_path=${DATA}/rollout_sphere_layers_45.pkl \
+        --subeq_layers --subeq_encoder \
+        --rotation_angle=45
+```
+
+Finally, you can plot the results:
+
+```sh
+
+python plot_cloth.py --rollout_path=${DATA}/rollout_sphere_[variant]_[rot_angle].pkl
+```
