@@ -1,41 +1,64 @@
 {
-    "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File with Arguments",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/run_model.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}", // Sets the working directory to the workspace folder
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"},
+            "name": "Run Model",
+            "program": "${workspaceFolder}/${input:programName}",
             "args": [
-                "--mode=eval",
-                "--model=cloth",
-                "--checkpoint_dir=data/chk",
-                "--dataset_dir=meshgraphnets/data/sphere_simple",
-                "--rollout_path=data/rollout_flag.pkl"
-            ],
-            "justMyCode": true
+                "--mode=${input:mode}",
+                "--model=${input:model}",
+                "--checkpoint_dir=${workspaceFolder}/data/chk",
+                "--dataset_dir=${workspaceFolder}/data/sphere_simple",
+                "--subeq_layer=${input:subeq_layer}",
+                "--subeq_encoder=${input:subeq_encoder}"
+            ]
         }
+    ],
+    "inputs": [
         {
-            "name": "Python Debugger: TRAIN",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/run_model.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}", // Sets the working directory to the workspace folder
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"},
-            "args": [
-                "--mode=train",
-                "--model=cloth",
-                "--checkpoint_dir=data/chk",
-                "--dataset_dir=meshgraphnets/data/sphere_simple",
-            ],
-            "justMyCode": true
+            "type": "pickString",
+            "id": "programName",
+            "description": "Select the program to run",
+            "options": [
+                "run_model.py",
+            ]
+        },
+        {
+            "type": "pickString",
+            "id": "mode",
+            "description": "Select the mode",
+            "options": [
+                "train",
+                "eval"
+            ]
+        },
+        {
+            "type": "pickString",
+            "id": "model",
+            "description": "Select the model",
+            "options": [
+                "cloth",
+                "cfd"
+            ]
+        },
+        {
+            "type": "pickString",
+            "id": "subeq_layer",
+            "description": "Select the Subequivariant Layer Flag",
+            "options": [
+                "true",
+                "false"
+            ]
+        },
+        {
+            "type": "pickString",
+            "id": "subeq_encoder",
+            "description": "Select the Subequivariant Encoder Flag",
+            "options": [
+                "true",
+                "false"
+            ]
         }
-
     ]
 }
