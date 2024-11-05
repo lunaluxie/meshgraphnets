@@ -64,7 +64,7 @@ python run_model.py --mode=${MODE} --model=cloth \
 ## sphere/layers
 python run_model.py --mode=${MODE} --model=cloth \
         --checkpoint_dir=${DATA}/chk/chk_sphere_layers \
-        kv--dataset_dir=${DATA}/sphere_simple \
+        --dataset_dir=${DATA}/sphere_simple \
         --rollout_path=${DATA}/rollout_sphere_layers_45.pkl \
         --subeq_layers --subeq_encoder \
         --rotation_angle=45
